@@ -463,106 +463,116 @@ is_valid(Var obj)
 }
 
 Objid
-db_renumber_object(Objid old)
+db_renumber_object(Objid old, Objid _new = -1)
 {
-    Objid _new;
+    Objid _id;
     Object *o;
 
 #ifdef USE_ANCESTOR_CACHE
     db_clear_ancestor_cache();
 #endif /* USE_ANCESTOR_CACHE */
 
-    for (_new = 0; _new < old; _new++) {
-	if (objects[_new] == nullptr) {
-	    /* Change the identity of the object. */
-	    o = objects[_new] = objects[old];
-	    objects[old] = nullptr;
-	    objects[_new]->id = _new;
+    if (_new != -1 && (_new < 0 || _new > max_objects || objects[_new] != nullptr))
+        return old;
 
-	    /* Fix up the parents/children hierarchy and the
-	     * location/contents hierarchy.
-	     */
-	    int i1, c1, i2, c2;
-	    Var obj1, obj2;
+    if (_new == -1) {
+        for (_id = 0; _id < old; _id++) {
+            if (objects[_id] == nullptr) {
+                _new = _id;
+                break;
+            }
+        }
+    }
 
-#define	    FIX(up, down)							\
-	    if (TYPE_LIST == o->up.type) {					\
+    if (_new > -1) {
+	/* Change the identity of the object. */
+	o = objects[_new] = objects[old];
+	objects[old] = nullptr;
+	objects[_new]->id = _new;
+
+	/* Fix up the parents/children hierarchy and the
+	 * location/contents hierarchy.
+	 */
+	int i1, c1, i2, c2;
+	Var obj1, obj2;
+
+#define	FIX(up, down)							\
+	if (TYPE_LIST == o->up.type) {					\
 		FOR_EACH(obj1, o->up, i1, c1) {					\
-		    FOR_EACH(obj2, objects[obj1.v.obj]->down, i2, c2)		\
+		FOR_EACH(obj2, objects[obj1.v.obj]->down, i2, c2)		\
 			if (obj2.v.obj == old)					\
-			    break;						\
-		    objects[obj1.v.obj]->down.v.list[i2].v.obj = _new;		\
+			break;						\
+		objects[obj1.v.obj]->down.v.list[i2].v.obj = _new;		\
 		}								\
-	    }									\
-	    else if (TYPE_OBJ == o->up.type && NOTHING != o->up.v.obj) {	\
+	}									\
+	else if (TYPE_OBJ == o->up.type && NOTHING != o->up.v.obj) {	\
 		FOR_EACH(obj1, objects[o->up.v.obj]->down, i2, c2)		\
 		if (obj1.v.obj == old)						\
-		    break;							\
+		break;							\
 		objects[o->up.v.obj]->down.v.list[i2].v.obj = _new;		\
-	    }									\
-	    FOR_EACH(obj1, o->down, i1, c1) {					\
+	}									\
+	FOR_EACH(obj1, o->down, i1, c1) {					\
 		if (TYPE_LIST == objects[obj1.v.obj]->up.type) {		\
-		    FOR_EACH(obj2, objects[obj1.v.obj]->up, i2, c2)		\
+		FOR_EACH(obj2, objects[obj1.v.obj]->up, i2, c2)		\
 			if (obj2.v.obj == old)					\
-			    break;						\
-		    objects[obj1.v.obj]->up.v.list[i2].v.obj = _new;		\
+			break;						\
+		objects[obj1.v.obj]->up.v.list[i2].v.obj = _new;		\
 		}								\
 		else {								\
-		    objects[obj1.v.obj]->up.v.obj = _new;			\
+		objects[obj1.v.obj]->up.v.obj = _new;			\
 		}								\
-	    }
+	}
 
-	    FIX(parents, children);
-	    FIX(location, contents);
+	FIX(parents, children);
+	FIX(location, contents);
 
-#undef	    FIX
+#undef	FIX
 
-	    /* Fix up the list of users, if necessary */
-	    if (is_user(_new)) {
+	/* Fix up the list of users, if necessary */
+	if (is_user(_new)) {
 		int i;
 
 		for (i = 1; i <= all_users.v.list[0].v.num; i++)
-		    if (all_users.v.list[i].v.obj == old) {
+		if (all_users.v.list[i].v.obj == old) {
 			all_users.v.list[i].v.obj = _new;
 			break;
-		    }
-	    }
-	    /* Fix the owners of verbs, properties and objects */
-	    {
+		}
+	}
+	/* Fix the owners of verbs, properties and objects */
+	{
 		Objid oid;
 
 		for (oid = 0; oid < num_objects; oid++) {
-		    Object *o = objects[oid];
-		    Verbdef *v;
-		    Pval *p;
-		    int i, count;
+		Object *o = objects[oid];
+		Verbdef *v;
+		Pval *p;
+		int i, count;
 
-		    if (!o)
+		if (!o)
 			continue;
 
-		    if (o->owner == _new)
+		if (o->owner == _new)
 			o->owner = NOTHING;
-		    else if (o->owner == old)
+		else if (o->owner == old)
 			o->owner = _new;
 
-		    for (v = o->verbdefs; v; v = v->next)
+		for (v = o->verbdefs; v; v = v->next)
 			if (v->owner == _new)
-			    v->owner = NOTHING;
+			v->owner = NOTHING;
 			else if (v->owner == old)
-			    v->owner = _new;
+			v->owner = _new;
 
-		    p = o->propval;
-		    count = o->nval;
-		    for (i = 0; i < count; i++)
+		p = o->propval;
+		count = o->nval;
+		for (i = 0; i < count; i++)
 			if (p[i].owner == _new)
-			    p[i].owner = NOTHING;
+			p[i].owner = NOTHING;
 			else if (p[i].owner == old)
-			    p[i].owner = _new;
+			p[i].owner = _new;
 		}
-	    }
-
-	    return _new;
 	}
+
+	return _new;
     }
 
     /* There are no recycled objects less than `old', so keep its number. */

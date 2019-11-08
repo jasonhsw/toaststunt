@@ -505,16 +505,26 @@ raise_error(package p, enum outcome *outcome)
     int handler_activ = find_handler_activ(p.u.raise.code);
     Finally_Reason why;
     Var value;
+    Stream *s = new_stream(25);
 
     if (handler_activ >= 0) {	/* handler found */
 	why = FIN_RAISE;
 	value = new_list(4);
     } else {			/* uncaught exception */
 	why = FIN_UNCAUGHT;
-	value = new_list(5);
+	value = new_list(6);
 	value.v.list[5] = error_backtrace_list(p.u.raise.msg);
+	value.v.list[6].type = TYPE_STR;
+	stream_add_string(s, activ_stack[0].verb);
+	if (strcmp(activ_stack[0].rt_env[SLOT_ARGSTR].v.str, "") != 0) {
+	    stream_add_char(s, ' ');
+	    stream_add_string(s, activ_stack[0].rt_env[SLOT_ARGSTR].v.str);
+	}
+	value.v.list[6].v.str = str_dup(stream_contents(s));
 	handler_activ = 0;	/* get entire stack in list */
     }
+    free_stream(s);
+
     value.v.list[1] = p.u.raise.code;
     value.v.list[2].type = TYPE_STR;
     value.v.list[2].v.str = p.u.raise.msg;
@@ -537,6 +547,7 @@ abort_task(enum abort_reason reason)
     Var value;
     const char *msg;
     const char *htag;
+    Stream *s = new_stream(25);
 
     switch(reason) {
     default:
@@ -553,13 +564,23 @@ abort_task(enum abort_reason reason)
 	htag = "seconds";
 
     save_hinfo:
-	value = new_list(3);
+	value = new_list(4);
 	value.v.list[1].type = TYPE_STR;
 	value.v.list[1].v.str = str_dup(htag);
 	value.v.list[2] = make_stack_list(activ_stack, 0, top_activ_stack, 1,
 					  root_activ_vector, 1,
 					  NOTHING);
 	value.v.list[3] = error_backtrace_list(msg);
+       value.v.list[4].type = TYPE_STR;
+       stream_add_string(s, activ_stack[0].verb);
+       if (strcmp(activ_stack[0].rt_env[SLOT_ARGSTR].v.str, "") != 0) {
+           stream_add_char(s, ' ');
+           stream_add_string(s, activ_stack[0].rt_env[SLOT_ARGSTR].v.str);
+       }
+
+       value.v.list[4].v.str = str_dup(stream_contents(s));
+       free_stream(s);
+
 	save_handler_info("handle_task_timeout", value);
 	/* fall through */
 
@@ -2888,7 +2909,7 @@ run_interpreter(char raise, enum error e,
 			}
 		}
 		i = args.v.list[0].v.num;
-		traceback = args.v.list[i]; /* traceback is always the last argument */
+		traceback = args.v.list[i - 1]; /* traceback is always the second-last argument */
 		for (i = 1; i <= traceback.v.list[0].v.num; i++)
 			notify(activ_stack[0].player, traceback.v.list[i].v.str);
 	}
@@ -3250,7 +3271,7 @@ bf_suspend(Var arglist, Byte next, void *vdata, Objid progr)
 /* An in-server replacement for the LambdaCore suspend_if_needed verb.
  * Arguments:
  *  time to suspend (default 0)
- *  ticks left before suspending (default 2000)
+ *  ticks left before suspending (default 4000)
  *  seconds left before suspending (default 2)
  */
 static package
@@ -3269,7 +3290,7 @@ bf_yield_if_needed(Var arglist, Byte next, void *vdata, Objid progr)
 
     secondsp = &seconds;
 
-    min_ticks = (nargs >= 2 ? arglist.v.list[2].v.num : 2000);
+    min_ticks = (nargs >= 2 ? arglist.v.list[2].v.num : 4000);
     min_seconds = (nargs >= 3 ? arglist.v.list[3].v.num : 2);
 
     free_var(arglist);

@@ -1853,16 +1853,20 @@ static package
 bf_renumber(Var arglist, Byte next, void *vdata, Objid progr)
 {
     Var r;
+    int nargs = arglist.v.list[0].v.num;
     Objid o = arglist.v.list[1].v.obj;
+    Objid n = nargs > 1 ? arglist.v.list[2].v.obj : -1;
     free_var(arglist);
 
     if (!valid(o))
 	return make_error_pack(E_INVARG);
     else if (!is_wizard(progr))
 	return make_error_pack(E_PERM);
+    else if (n != -1 && (n < 0 || n > db_last_used_objid() || valid(n)))
+        return make_error_pack(E_INVARG);
 
     r.type = TYPE_OBJ;
-    r.v.obj = db_renumber_object(o);
+    r.v.obj = db_renumber_object(o, n);
     return make_var_pack(r);
 }
 
@@ -2477,7 +2481,7 @@ void
 register_server(void)
 {
     register_function("server_version", 0, 1, bf_server_version, TYPE_ANY);
-    register_function("renumber", 1, 1, bf_renumber, TYPE_OBJ);
+    register_function("renumber", 1, 2, bf_renumber, TYPE_OBJ, TYPE_OBJ);
     register_function("reset_max_object", 0, 0, bf_reset_max_object);
     register_function("process_id", 0, 0, bf_process_id);
     register_function("memory_usage", 0, 0, bf_memory_usage);

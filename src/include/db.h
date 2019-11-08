@@ -140,8 +140,8 @@ extern Object *db_make_anonymous(Objid, Objid);
 				 * pointer to the object.
 				 */
 
-extern Objid db_renumber_object(Objid);
-				/* Renumbers object to have the lowest free
+extern Objid db_renumber_object(Objid, Objid);
+				/* Renumbers object to the specified object number, or to have the lowest free
 				 * object number.  Returns its new number.
 				 */
 
