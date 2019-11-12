@@ -53,7 +53,7 @@
 
 #include "version_src.h"
 #ifndef VERSION_EXT
-#  define VERSION_EXT ""
+#  define VERSION_EXT "+jasonhsw_4"
 #endif
 #ifndef VERSION_STRING
 #  define _V(MAJ,MIN,REL) #MAJ "." #MIN "." #REL
