@@ -126,11 +126,11 @@ ToastStunt is a fork of the LambdaMOO / Stunt server. It has a number of feature
     - '-m' command line option to clear all last_move properties in your database (and not set them again for the lifetime of the process).
     - Build system is now CMake
 
-Modifications by jasonhsw:
-Added in-database matching patch, which calls #0:match_object to perform matches.
-Added Luke-jr's handle_argstr patch, which adds the command which produced the traceback as an extra argument.
-Increased the default minimum ticks that yin() will suspend at from 2000 to 4000, to bring it in line with LambdaCore's suspend_if_needed verb.
-Renumber() now takes an optional second argument, so that you can choose which object number the object should have.
+- Modifications by jasonhsw:
+- Added in-database matching patch, which calls #0:match_object to perform matches. (original author unknown)
+- Added Luke-jr's handle_argstr patch, which adds the command which produced the traceback as an extra argument.
+- Increased the default minimum ticks that yin() will suspend at from 2000 to 4000, to bring it in line with LambdaCore's suspend_if_needed verb.
+- Renumber() now takes an optional second argument, so that you can choose which object number the object should have.
 
 ## Build Instructions
 ### **Debian/Ubuntu**
