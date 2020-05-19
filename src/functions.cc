@@ -167,7 +167,7 @@ static const char *func_not_found_msg = "no such function";
 const char *
 name_func_by_num(unsigned n)
 {				/* used by unparse only */
-    if (n >= bf_table.size()-1)
+    if (n >= bf_table.size())
 	return func_not_found_msg;
     else
 	return bf_table[n].name;
@@ -340,6 +340,18 @@ make_raise_pack(enum error err, const char *msg, Var value)
     p.u.raise.value = value;
 
     return p;
+}
+
+package
+make_raise_x_not_found_pack(enum error err, const char *msg)
+{
+	Var missing;
+	missing.type = TYPE_STR;
+	missing.v.str = str_dup(msg);
+	char *error_msg = nullptr;
+	asprintf(&error_msg, "%s: %s", unparse_error(err), msg);
+
+    return make_raise_pack(err, error_msg, missing);
 }
 
 package
