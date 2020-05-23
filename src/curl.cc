@@ -10,6 +10,8 @@
 #include "log.h"
 #include "background.h"
 
+static CURL *curl_handle = nullptr;
+
 typedef struct CurlMemoryStruct {
     char *result;
     size_t size;
@@ -89,19 +91,17 @@ bf_url_encode(Var arglist, Byte next, void *vdata, Objid progr)
 
     free_var(arglist);
 
-    CURL *curl_handle = curl_easy_init();
+    char *encoded = curl_easy_escape(curl_handle, url, memo_strlen(url));
 
-    const char *encoded = curl_easy_escape(curl_handle, url, memo_strlen(url));
-
-    if(encoded == nullptr) {
+    if (encoded == nullptr) {
         curl_easy_cleanup(curl_handle);
         return make_error_pack(E_INVARG);
     }
 
-        curl_easy_cleanup(curl_handle);
-
     r.type = TYPE_STR;
     r.v.str = str_dup(encoded);
+
+    curl_free(encoded);
 
     return make_var_pack(r);
 }
@@ -114,19 +114,17 @@ bf_url_decode(Var arglist, Byte next, void *vdata, Objid progr)
 
     free_var(arglist);
 
-    CURL *curl_handle = curl_easy_init();
+    char *decoded = curl_easy_unescape(curl_handle, url, memo_strlen(url), nullptr);
 
-    const char *decoded = curl_easy_unescape(curl_handle, url, memo_strlen(url), nullptr);
-
-    if(decoded == nullptr) {
+    if (decoded == nullptr) {
         curl_easy_cleanup(curl_handle);
         return make_error_pack(E_INVARG);
     }
 
-    curl_easy_cleanup(curl_handle);
-
     r.type = TYPE_STR;
     r.v.str = str_dup(decoded);
+
+    curl_free(decoded);
 
     return make_var_pack(r);
 }
@@ -134,6 +132,9 @@ bf_url_decode(Var arglist, Byte next, void *vdata, Objid progr)
 void curl_shutdown(void)
 {
     curl_global_cleanup();
+    
+    if (curl_handle != nullptr)
+        curl_easy_cleanup(curl_handle);
 }
 
 void
@@ -141,6 +142,7 @@ register_curl(void)
 {
     oklog("REGISTER_CURL: Using libcurl version %s\n", curl_version());
     curl_global_init(CURL_GLOBAL_ALL);
+    curl_handle = curl_easy_init();
     register_function("curl", 1, 2, bf_curl, TYPE_STR, TYPE_ANY);
     register_function("url_encode", 1, 1, bf_url_encode, TYPE_STR);
     register_function("url_decode", 1, 1, bf_url_decode, TYPE_STR);
