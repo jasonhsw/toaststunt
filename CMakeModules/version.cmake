@@ -36,7 +36,7 @@ set(VERSION "
     DEF(vcs_version,\"${GIT_VERSION}\") \\
     DEF(commit,\"${GIT_REV}${GIT_DIFF}\") \\
     DEF(branch,\"${GIT_BRANCH}\") \\
-    DEF(url,\"https://github.com/lisdude/toaststunt\")
+    DEF(url,\"https://github.com/jasonhsw/toaststunt\")
 ")
 
 if(EXISTS ${CMAKE_BINARY_DIR}/version_src.h)
