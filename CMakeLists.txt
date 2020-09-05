@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.2)
 set(VERSION_MAJOR 2)
 set(VERSION_MINOR 6)
+set(VERSION_RELEASE 2)
 set(VERSION_EXT "+jasonhsw_4")
 project(ToastStunt VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_RELEASE} LANGUAGES CXX C)
 
