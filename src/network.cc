@@ -428,9 +428,15 @@ new_nhandle(const int rfd, const int wfd, const bool outbound, uint16_t listen_p
 {
     nhandle *h;
 
-    if (!network_set_nonblocking(rfd)
-            || (rfd != wfd && !network_set_nonblocking(wfd)))
-        log_perror("Setting connection non-blocking");
+#ifdef HAVE_ACCEPT4
+    if (outbound) {
+#else
+    {
+#endif
+        if (!network_set_nonblocking(rfd)
+                || (rfd != wfd && !network_set_nonblocking(wfd)))
+            log_perror("Setting connection non-blocking");
+    }
 
     h = (nhandle *) mymalloc(sizeof(nhandle), M_NETWORK);
 
@@ -1137,6 +1143,8 @@ network_initialize(int argc, char **argv, Var * desc)
             ERR_error_string_n(ERR_get_error(), error_msg, 256);
             errlog("TLS: Private key does not match the certificate: %s\n", error_msg);
         }
+
+        SSL_CTX_set_session_id_context(tls_ctx, (const unsigned char*)"ToastStunt", 10);
 
 #ifdef VERIFY_TLS_PEERS
         if (!SSL_CTX_set_default_verify_paths(tls_ctx))
