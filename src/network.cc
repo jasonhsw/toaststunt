@@ -279,7 +279,15 @@ push_output(nhandle * h)
         if (count == length)
             h->output_lines_flushed = 0;
         else
+#ifdef USE_TLS
+        {
+            int error = SSL_get_error(h->tls, count);
+            errlog("TLS: Error pushing output (%i) from %s: %s\n", error, h->name, ERR_error_string(ERR_get_error(), nullptr));
+            return count > 0 || error == SSL_ERROR_SYSCALL;
+        }
+#else
             return count >= 0 || errno == eagain || errno == ewouldblock;
+#endif
     }
     while ((b = h->output_head) != nullptr) {
 #ifdef USE_TLS
@@ -288,12 +296,17 @@ push_output(nhandle * h)
         else
 #endif
             count = write(h->wfd, b->start, b->length);
-        if (count < 0) {
 #ifdef USE_TLS
+        if (count <= 0) {
             if (h->tls) {
-                SSL_get_error(h->tls, count);
-                errlog("TLS: Error pushing output: %s\n", ERR_error_string(ERR_get_error(), nullptr));
+                int error = SSL_get_error(h->tls, count);
+                if (error == SSL_ERROR_SYSCALL)
+                    return 1;
+                else
+                    errlog("TLS: Error pushing output (%i) from %s: %s\n", error, h->name, ERR_error_string(ERR_get_error(), nullptr));
             }
+#else
+        if (count < 0) {
 #endif
             return (errno == eagain || errno == ewouldblock);
         }
@@ -335,36 +348,42 @@ pull_input(nhandle * h)
 
 #ifdef USE_TLS
     if (h->tls) {
+        int error = 0;
         if (!h->connected) {
             int tls_success = SSL_accept(h->tls);
-            switch (SSL_get_error(h->tls, tls_success)) {
+            error = SSL_get_error(h->tls, tls_success);
+            switch (error) {
                 case SSL_ERROR_WANT_READ:
                 case SSL_ERROR_WANT_WRITE:
+                case SSL_ERROR_SYSCALL:
                     return 1;
                     break;
                 case SSL_ERROR_NONE:
                     h->connected = true;
                     break;
                 default:
-                    errlog("TLS: Accept failed: %s\n", ERR_error_string(ERR_get_error(), nullptr));
+                    errlog("TLS: Accept failed (%i) from %s: %s\n", error, h->name, ERR_error_string(ERR_get_error(), nullptr));
                     return 0;
             }
 
-            oklog("TLS: %s. Cipher = %s\n", SSL_state_string_long(h->tls), SSL_get_cipher(h->tls));
+            oklog("TLS: %s for %s. Cipher: %s\n", SSL_state_string_long(h->tls), h->name, SSL_get_cipher(h->tls));
             return 1;
         } else {
             count = SSL_read(h->tls, buffer, sizeof(buffer));
 
-            if (count < 0) {
-                if (SSL_get_error(h->tls, count) == SSL_ERROR_WANT_READ)
+            if (count <= 0) {
+                error = SSL_get_error(h->tls, count);
+                if (error == SSL_ERROR_WANT_READ || SSL_ERROR_SYSCALL)
                     return 1;
                 else
-                    errlog("TLS: Error pulling input: %s\n", ERR_error_string(ERR_get_error(), nullptr));
+                    errlog("TLS: Error pulling input (%i) from %s: %s\n", error, h->name, ERR_error_string(ERR_get_error(), nullptr));
             }
         }
-    } else
+    } else {
 #endif
         count = read(h->rfd, buffer, sizeof(buffer));
+    }
+
     if (count > 0) {
         if (h->binary) {
             stream_add_raw_bytes_to_binary(s, buffer, count);
@@ -416,9 +435,10 @@ pull_input(nhandle * h)
             free_stream(oob);
         }
         return 1;
-    } else
+    } else {
         return (count == 0 && !proto.believe_eof)
                || (count < 0 && (errno == eagain || errno == ewouldblock));
+    }
 }
 
 static nhandle *
@@ -970,7 +990,7 @@ open_connection(Var arglist, int *read_fd, int *write_fd,
                     result = -1;
                     errno = TLS_CONNECT_FAIL;
                 } else {
-                    oklog("TLS: %s. Cipher = %s\n", SSL_state_string_long(*tls), SSL_get_cipher(*tls));
+                    oklog("TLS: %s. Cipher: %s\n", SSL_state_string_long(*tls), SSL_get_cipher(*tls));
                 }
             }
         }
@@ -996,8 +1016,10 @@ open_connection(Var arglist, int *read_fd, int *write_fd,
         } else if (errno == TLS_FAIL) {
             return E_INVARG;
         } else if (errno == TLS_CONNECT_FAIL) {
-            SSL_shutdown(*tls);
-            SSL_free(*tls);
+            if (*tls) {
+                SSL_shutdown(*tls);
+                SSL_free(*tls);
+            }
             return E_INVARG;
 #endif
         }
@@ -1291,19 +1313,26 @@ network_process_io(int timeout)
 {
     nhandle *h, *hnext;
     nlistener *l;
+    bool pending_tls = false;
 
     mplex_clear();
     for (l = all_nlisteners; l; l = l->next)
         mplex_add_reader(l->fd);
     for (h = all_nhandles; h; h = h->next) {
         if (!h->input_suspended)
+        {
             mplex_add_reader(h->rfd);
+#ifdef USE_TLS
+            if (h->tls && SSL_pending(h->tls))
+                pending_tls = true;
+#endif
+        }
         if (h->output_head)
             mplex_add_writer(h->wfd);
     }
     add_registered_fds();
 
-    if (mplex_wait(timeout))
+    if (!pending_tls && mplex_wait(timeout))
         return 0;
     else {
         for (l = all_nlisteners; l; l = l->next)
