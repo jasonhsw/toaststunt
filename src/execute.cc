@@ -94,6 +94,9 @@ static Var map_suspended;
 static Var map_time;
 #endif              /* SAVE_FINISHED_TASKS */
 
+static char* type_mismatch_string(int n_args, ...);
+static Var type_mismatch_value(int n_args, ...);
+
 /* macros to ease indexing into activation stack */
 #define RUN_ACTIV     activ_stack[top_activ_stack]
 #define CALLER_ACTIV  activ_stack[top_activ_stack - 1]
@@ -3090,12 +3093,12 @@ run_interpreter(char raise, enum error e,
     double lag_threshold = server_float_option("task_lag_threshold", DEFAULT_LAG_THRESHOLD);
     if (total_cputime.v.fnum >= lag_threshold && lag_threshold >= 0.1)
     {
-        errlog("LAG: %f seconds\n", total_cputime.v.fnum);
+        errlog("LAG: %f seconds caused by #%" PRIdN ":%s\n", total_cputime.v.fnum, RUN_ACTIV.vloc.v.obj, RUN_ACTIV.verbname);
         db_verb_handle handle = db_find_callable_verb(Var::new_obj(SYSTEM_OBJECT), "handle_lagging_task");
         if (handle.ptr)
         {
             Var lag_info = new_list(2);
-            lag_info.v.list[1] = make_stack_list(activ_stack, 0, top_activ_stack, 0, root_activ_vector, 1, server_int_option("INCLUDE_RT_VARS", 0), RUN_ACTIV.progr);
+            lag_info.v.list[1] = make_stack_list(activ_stack, 0, top_activ_stack, 1, root_activ_vector, 1, server_int_option("INCLUDE_RT_VARS", 0), RUN_ACTIV.progr);
             lag_info.v.list[2] = total_cputime;
             do_server_verb_task(Var::new_obj(SYSTEM_OBJECT), "handle_lagging_task", lag_info, handle, activ_stack[0].player, "", nullptr, 0);
         }
@@ -4059,7 +4062,7 @@ void set_thread_mode(bool mode)
 /* Create a type mismatch traceback and try-except return value.
    The first argument is the mismatched type that was received.
    The remaining arguments are the types that were expected. */
-char*
+static char*
 type_mismatch_string(int n_args, ...)
 {
     static Stream *error_msg = nullptr;
@@ -4089,7 +4092,7 @@ type_mismatch_string(int n_args, ...)
     return str_dup(reset_stream(error_msg));
 }
 
-Var
+static Var
 type_mismatch_value(int n_args, ...)
 {
     /* Since -d verbs can't use the value anyway,

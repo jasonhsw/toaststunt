@@ -1793,6 +1793,25 @@ find_network_handle(Objid obj, network_handle **handle)
     return 0;
 }
 
+static void
+set_system_object_integer_limits()
+{
+    if (!valid(SYSTEM_OBJECT))
+        return;
+
+    Var value;
+    db_prop_handle h;
+
+    h = db_find_property(Var::new_obj(SYSTEM_OBJECT), "maxint", &value);
+    if (h.ptr)
+        db_set_property_value(h, Var::new_int(MAXINT));
+
+    h = db_find_property(Var::new_obj(SYSTEM_OBJECT), "minint", &value);
+    if (h.ptr)
+        db_set_property_value(h, Var::new_int(MININT));
+
+}
+
 int waif_conversion_type = _TYPE_WAIF;    /* For shame. We can remove this someday. */
 
 int
@@ -2838,25 +2857,6 @@ bf_process_id(Var arglist, Byte next, void *vdata, Objid progr)
     taskid.v.num = getpid();
 
     return make_var_pack(taskid);
-}
-
-void
-set_system_object_integer_limits()
-{
-    if (!valid(SYSTEM_OBJECT))
-        return;
-
-    Var value;
-    db_prop_handle h;
-
-    h = db_find_property(Var::new_obj(SYSTEM_OBJECT), "maxint", &value);
-    if (h.ptr)
-        db_set_property_value(h, Var::new_int(MAXINT));
-
-    h = db_find_property(Var::new_obj(SYSTEM_OBJECT), "minint", &value);
-    if (h.ptr)
-        db_set_property_value(h, Var::new_int(MININT));
-
 }
 
 void
